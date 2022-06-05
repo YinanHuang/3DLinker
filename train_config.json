@@ -1,0 +1,2 @@
+{"num_epochs": 20, "epoch_to_generate": 9999, "train_file": "./zinc/molecules_zinc_test_final.json", "valid_file": "./zinc/molecules_zinc_test_final.json",
+"reverse_augmentation": "True"}

@@ -1,0 +1,2 @@
+{"batch_size": 1, "number_of_generation_per_valid": 250, "train_file": "./zinc/molecules_zinc_test_final.json", "valid_file": "./zinc/molecules_zinc_test_final.json",
+  "output_name":  "./generated_samples" }
