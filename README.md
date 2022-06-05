@@ -9,7 +9,7 @@ This directory contains the code and resources of the following paper:
 ## Overview of Model
 We introduce 3DLinker, a variational auto-encoder, to address the simultaneous generation of graphs and spatial coordinates in molecular linker design. Our model leverages an important geometric inductive bias: equivariance w.r.t. E(3) transformations. See the concrete encoding and decoding (generation) process below.
 
-![model](3dlinker.png)
+![model](https://raw.githubusercontent.com/YinanHuang/3DLinker/master/3dlinker.png)
 
 **Step 1.  Encode the fragments and ground-truth into equivariant node-level embeddings**
 
