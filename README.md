@@ -36,7 +36,7 @@ For more details, see Methodology of our paper.
 * \[analysis\] contains evaluation code.
  
 ## Data
-Only test dataset is included in this directory, which can be used for generation and evaluation. To train your own model, you can download the training dataset from.
+Only test dataset is included in this directory, which can be used for generation and evaluation. To train your own model, you can download the training dataset from [here](https://drive.google.com/drive/folders/1z4P_IDM5Zrc6Aju6qqwPvPQTd9lgZnXy).
 
 ## Code Usage
 **Python Envirnoment**
