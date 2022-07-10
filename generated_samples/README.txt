@@ -1,0 +1,1 @@
+Save your generated molecules in this directory. Each generation produces two file: a .smi (graphs) and a .sdf (coordinates). 

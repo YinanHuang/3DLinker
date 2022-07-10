@@ -21,8 +21,8 @@ from rdkit.Chem import rdMolAlign
 
 from joblib import Parallel, delayed
 
-import rdkit_conf_parallel
-import calc_SC_RDKit
+# import rdkit_conf_parallel
+# import calc_SC_RDKit
 import frag_utils
 
 import os, sys
@@ -72,7 +72,13 @@ if verbose:
 
 in_mols = [smi[1] for smi in generated_smiles]
 frag_mols = [smi[0] for smi in generated_smiles]
-gen_mols = [smi[2] for smi in generated_smiles]
+gen_mols = []
+# drop invalid generations
+for smi in generated_smiles:
+    try:
+        gen_mols.append(Chem.CanonSmiles(smi[2]))
+    except:
+        gen_mols.append("*")
 
 # Remove dummy atoms from starting points
 clean_frags = Parallel(n_jobs=n_cores)(delayed(frag_utils.remove_dummys)(smi) for smi in frag_mols)
@@ -80,9 +86,23 @@ clean_frags = Parallel(n_jobs=n_cores)(delayed(frag_utils.remove_dummys)(smi) fo
 
 # Check valid
 results = []
+val_idx = []
+i = 0
 for in_mol, frag_mol, gen_mol, clean_frag in zip(in_mols, frag_mols, gen_mols, clean_frags):
-    if len(Chem.MolFromSmiles(gen_mol).GetSubstructMatch(Chem.MolFromSmiles(clean_frag)))>0:
+    if Chem.MolFromSmiles(gen_mol) == None:
+        continue
+        # gen_mols is chemically valid
+    try:
+        Chem.SanitizeMol(Chem.MolFromSmiles(gen_mol), sanitizeOps=Chem.SanitizeFlags.SANITIZE_PROPERTIES)
+    except:
+        print('Chemical Invalid.')
+        continue
+    # gen_mols should contain both fragments
+    if len(Chem.MolFromSmiles(gen_mol).GetSubstructMatch(Chem.MolFromSmiles(clean_frag))) == Chem.MolFromSmiles(
+            clean_frag).GetNumAtoms():
         results.append([in_mol, frag_mol, gen_mol, clean_frag])
+        val_idx.append(i)
+    i += 1
 
 if verbose:
     print("Number of generated SMILES: \t%d" % len(generated_smiles))
@@ -91,7 +111,7 @@ if verbose:
 
 
 # Determine linkers of generated molecules
-linkers = Parallel(n_jobs=n_cores)(delayed(frag_utils.get_linker)(Chem.MolFromSmiles(m[2]), Chem.MolFromSmiles(m[3]), m[1])                                    for m in results)
+linkers = Parallel(n_jobs=n_cores)(delayed(frag_utils.get_linker)(Chem.MolFromSmiles(m[2]), Chem.MolFromSmiles(m[3]), m[1]) for m in results)
 
 # Standardise linkers
 for i, linker in enumerate(linkers):
@@ -170,7 +190,14 @@ if verbose:
     print("Novel linkers: %.2f%%" % (count_novel/len(results)*100))
 
 # Check proportion recovered
-recovered = frag_utils.check_recovered_original_mol(list(results_dict.values()))
+# Create dictionary of results
+results_dict_with_idx = {}
+for i, res in enumerate(results):
+    if res[0]+'.'+res[1] in results_dict_with_idx: # Unique identifier - starting fragments and original molecule
+        results_dict_with_idx[res[0]+'.'+res[1]].append([res, val_idx[i]])
+    else:
+        results_dict_with_idx[res[0]+'.'+res[1]] = [[res, val_idx[i]]]
+recovered, rec_idx = frag_utils.check_recovered_original_mol_with_idx(list(results_dict_with_idx.values()))
 if verbose:
     print("Recovered: %.2f%%" % (sum(recovered)/len(results_dict.values())*100))
 
@@ -191,3 +218,88 @@ if verbose:
     print("Pass PAINS filters: \t\t\t\t%.2f%%" % (len([f for f in filters_2d if f[2]])/len(filters_2d)*100))
 
 
+# estimate rmsd
+from rdkit.Geometry import Point3D
+def write_3d_pos(mol, pos):
+    success = AllChem.Compute2DCoords(mol, 0)
+    if success == -1:
+        print('3D positions fail to write')
+        exit(1)
+    conf = mol.GetConformer()
+    for i in range(conf.GetNumAtoms()):
+        x, y, z = pos[0, i, 0], pos[0, i, 1], pos[0, i, 2]
+        x, y, z = x.astype('double'), y.astype('double'), z.astype('double')
+        conf.SetAtomPosition(i, Point3D(x, y, z))
+    return mol
+
+
+# get recovered generated mols
+from copy import deepcopy
+sdf_file = deepcopy(gen_smi_file[:-3]) + 'sdf'
+gen_3d_mols = Chem.SDMolSupplier(sdf_file)
+gen_3d_mols_rec = []
+for i in rec_idx:
+    gen_3d_mols_rec.append(gen_3d_mols[i])
+
+
+import json
+# load ground truth mols
+val_data_path = '../zinc/molecules_zinc_test_canonical.json'
+with open(val_data_path, 'r') as f:
+    in_mols_val = json.load(f)
+in_mols_dic = {}
+for mol in in_mols_val:
+    temp = Chem.MolFromSmiles(mol['smiles_out'])
+    Chem.RemoveStereochemistry(temp)
+    # G1 = topology_from_rdkit(temp)
+    # G2 = topology_from_adj(mol['node_features_out'], mol['graph_out'])
+    mol_sdf = Chem.MolFromSmiles(mol['smiles_out'])
+    mol_sdf = write_3d_pos(mol_sdf, np.array(mol['positions_out']).reshape([1, len(mol['positions_out']), 3]))
+    in_mols_dic[Chem.MolToSmiles(temp)] = mol_sdf
+
+in_3d_mols = []
+# find referenced ground-truth
+for mol in gen_3d_mols_rec:
+    smi = Chem.MolToSmiles(mol)
+    temp = Chem.MolFromSmiles(smi)
+    Chem.RemoveStereochemistry(temp)
+    smi = Chem.MolToSmiles(temp)
+    in_3d_mols.append(in_mols_dic[smi])
+
+# compute rmsd
+def find_exit(mol, num_frag):
+    neighbors = []
+    for atom_idx in range(num_frag, mol.GetNumAtoms()):
+        N = mol.GetAtoms()[atom_idx].GetNeighbors()
+        for n in N:
+            if n.GetIdx() < num_frag:
+                neighbors.append(n.GetIdx())
+    # assert len(neighbors) == 2
+    return neighbors
+
+from networkx.algorithms import isomorphism
+rmsd = []
+mappings = []
+index = []
+exits = []
+for i in range(len(gen_3d_mols_rec)):
+    mol1 = gen_3d_mols_rec[i]
+    mol2 = in_3d_mols[i]
+    pos1 = mol1.GetConformer().GetPositions()
+    pos2 = mol2.GetConformer().GetPositions()
+    # check if they are 3d recovered
+    G1 = frag_utils.topology_from_rdkit(mol1)
+    G2 = frag_utils.topology_from_rdkit(mol2)
+    GM = isomorphism.GraphMatcher(G1, G2)
+    num_frag = Chem.MolFromSmiles(frag_mols[rec_idx[i]]).GetNumAtoms() - 2
+    flag = GM.is_isomorphic()
+    exits = find_exit(mol1, num_frag)
+    if flag and len(exits) == 2 and flag: # check if isomorphic and if exit nodes are correctly aligned
+        error = Chem.rdMolAlign.GetBestRMS(mol1, mol2)
+        num_linker = mol2.GetNumAtoms() - Chem.MolFromSmiles(frag_mols[rec_idx[i]]).GetNumAtoms() + 2
+        num_atoms = mol1.GetNumAtoms()
+        error *= np.sqrt(num_atoms / num_linker) # only count rmsd on linker
+        rmsd.append(error)
+
+rmsd = np.array(rmsd)
+print('Aveage RMSD is %f' % np.mean(np.array(rmsd)))

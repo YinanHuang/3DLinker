@@ -3,7 +3,9 @@ import random
 import re
 import math
 import csv
-
+import sys
+sys.path.append('../analysis')
+sys.path.append('./analysis')
 import numpy as np
 import pandas as pd
 
@@ -17,15 +19,17 @@ from rdkit.Chem.Fingerprints import FingerprintMols
 from rdkit.Chem import rdFMCS
 from rdkit.Chem import rdMolAlign
 from rdkit.Chem import MolStandardize
-
+import networkx as nx
+from rdkit.Geometry import Point3D
+from networkx.algorithms import isomorphism
+from rdkit.Chem import rdmolops
+from calc_SC_RDKit import calc_SC_RDKit_score
 import matplotlib.pyplot as plt
 
 import sascorer
 from itertools import chain, product
 
 from joblib import Parallel, delayed
-
-import calc_SC_RDKit
 
 ### Dataset info #####
 def dataset_info(dataset): #qm9, zinc, cep
@@ -85,6 +89,24 @@ def read_triples_file(filename):
                 smiles.append(line.strip().split(' ')[0:3])
     return smiles
 
+def split_smiles(smi_file, split_num=5):
+    smis = []
+    with open(smi_file, 'r') as in_file:
+        for line in in_file:
+            smis.append(line)
+    # smis = read_triples_file(smi_file)
+    file_len = int(len(smis) / split_num)
+    for i in range(split_num):
+        start_idx = i * file_len
+        if i != split_num - 1:
+            smis_part = smis[start_idx : (i + 1) * file_len]
+        else:
+            smis_part = smis[start_idx : ]
+        with open(smi_file + '_split%d' %i, 'w') as out_file:
+            for line in smis_part:
+                out_file.write(line)
+
+
 ##### Check data #####
 def check_smi_atom_types(smi, dataset='zinc', verbose=False):
     mol = Chem.MolFromSmiles(smi)
@@ -140,12 +162,14 @@ def fragment_dataset(smiles, linker_min=3, fragment_min=5, min_path_length=2, li
         smi = smi.rstrip()
         smiles = smi
         cmpd_id = smi
-
+        # count_successes = 0
         # Fragment smi
         o = fragment_mol(smiles, cmpd_id)
 
         # Checks if suitable fragmentation
         for l in o:
+            # if count_successes >= max_num_linker:
+              #  break
             smiles = l.replace('.',',').split(',')
             mols = [Chem.MolFromSmiles(smi) for smi in smiles[1:]]
             add = True
@@ -184,6 +208,7 @@ def fragment_dataset(smiles, linker_min=3, fragment_min=5, min_path_length=2, li
                             break
             if add == True:
                 successes.append(l)
+                # count_successes += 1
         
         if verbose:
             # Progress
@@ -489,6 +514,61 @@ def compute_distance_and_angle_dataset(fragmentations, path_to_conformers, datas
     
     return fragmentations_new, distances, angles, (fail_count, fail_count_conf, fails)
 
+def compute_distance_and_angle_dataset_alt(fragmentations, path_to_conformers, verbose=False):
+    # Load conformers
+    conformers = Chem.SDMolSupplier(path_to_conformers)
+    # Convert dataset to dictionary
+    dataset_dict = {}
+    for toks in fragmentations:
+        if toks[1] in dataset_dict:
+            dataset_dict[toks[1]].append([toks[2], toks[0]])
+        else:
+            dataset_dict[toks[1]] = [[toks[2], toks[0]]]
+
+    # Initialise placeholders for results
+    fragmentations_new = []
+    distances = []
+    angles = []
+
+    du = Chem.MolFromSmiles('*')
+
+    # Record number of failures
+    fail_count = 0
+    fail_count_conf = 0
+    fails = []
+
+    # Loop over conformers
+    for count, mol in enumerate(conformers):
+        # Check mol of conformer in fragmentations
+        if mol is not None:
+            mol_name = Chem.MolToSmiles(mol)
+            if mol_name in dataset_dict:
+                # Loop over all fragmentations of this mol
+                for fragments in dataset_dict[mol_name]:
+                    dist, ang = compute_distance_and_angle(mol, fragments[0], fragments[1])
+                    if dist and ang:
+                        fragmentations_new.append([mol_name] + fragments)
+                        distances.append(dist)
+                        angles.append(ang)
+                    else:
+                        print(fragments[0], fragments[1])
+                        print(dist, ang)
+                        fails.append([mol_name] + fragments)
+                        fail_count += 1
+        else:
+            fail_count_conf += 1
+
+        if verbose:
+            # Progress
+            if count % 1000 == 0:
+                print("\rMol: %d" % count, end = '')
+
+    if verbose:
+        print("\rDone")
+        print("Fail count conf %d" % fail_count_conf)
+
+    return fragmentations_new, distances, angles, (fail_count, fail_count_conf, fails)
+
 
 ##### Drawing #####
 
@@ -791,7 +871,7 @@ def calc_filters_2d_dataset(results, pains_smarts_loc, n_cores=1):
     # Load pains filters
     with open(pains_smarts_loc, 'r') as f:
         pains_smarts = [Chem.MolFromSmarts(line[0], mergeHs=True) for line in csv.reader(f)]
-        
+    # calc_2d_filters([results[0][2], results[0][4], results[0][1]], pains_smarts)
     with Parallel(n_jobs=n_cores, backend='multiprocessing') as parallel:
         filters_2d = parallel(delayed(calc_2d_filters)([toks[2], toks[4], toks[1]], pains_smarts) for toks in results)
         
@@ -854,6 +934,34 @@ def recovered_by_smi_canon(results):
                 recovered += 1
                 break
     return recovered/total
+
+def check_recovered_original_mol_with_idx(results):
+    outcomes = []
+    rec_idx = []
+    for res in results:
+        success = False
+        # Load original mol and canonicalise
+        orig_mol = Chem.MolFromSmiles(res[0][0][0])
+        Chem.RemoveStereochemistry(orig_mol)
+        orig_mol = Chem.MolToSmiles(Chem.RemoveHs(orig_mol))
+        #orig_mol = MolStandardize.canonicalize_tautomer_smiles(orig_mol)
+        # Check generated mols
+        for m in res:
+            # print(1)
+            gen_mol = Chem.MolFromSmiles(m[0][2])
+            Chem.RemoveStereochemistry(gen_mol)
+            gen_mol = Chem.MolToSmiles(Chem.RemoveHs(gen_mol))
+            #gen_mol = MolStandardize.canonicalize_tautomer_smiles(gen_mol)
+            if gen_mol == orig_mol:
+                # outcomes.append(True)
+                success = True
+                rec_idx.append(m[1])
+                # break
+        if not success:
+            outcomes.append(False)
+        else:
+            outcomes.append(True)
+    return outcomes, rec_idx
 
 def check_recovered_original_mol(results):
     outcomes = []
@@ -990,7 +1098,7 @@ def SC_RDKit_full_mol(gen_mol, ref_mol):
         # Align
         pyO3A = rdMolAlign.GetO3A(gen_mol, ref_mol).Align()
         # Calc SC_RDKit score
-        score = calc_SC_RDKit.calc_SC_RDKit_score(gen_mol, ref_mol)
+        score = calc_SC_RDKit_score(gen_mol, ref_mol)
         return score
     except:
         return -0.5 # Dummy score
@@ -1016,7 +1124,7 @@ def SC_RDKit_frag_mol(gen_mol, ref_mol, start_pt):
                 # Align
                 pyO3A = rdMolAlign.GetO3A(fragmented_mol, fragmented_mol_ref).Align()
                 # Calc SC_RDKit score
-                score = calc_SC_RDKit.calc_SC_RDKit_score(fragmented_mol, fragmented_mol_ref)
+                score = calc_SC_RDKit_score(fragmented_mol, fragmented_mol_ref)
                 return score
     except:
         return -0.5 # Dummy score
@@ -1048,3 +1156,71 @@ def rmsd_frag_mol(gen_mol, ref_mol, start_pt):
 
 def rmsd_frag_scores(gen_mols):
     return [rmsd_frag_mol(gen_mol, ref_mol, start_pt) for (gen_mol, ref_mol, start_pt) in gen_mols]
+
+
+def preprocess_conformers(mols):
+    mols_processed = []
+    for i in range(len(mols)):
+        try:
+            # remove Hs and Kekulize molecules
+            mol = Chem.RemoveHs(mols[i])
+            rdmolops.Kekulize(mol, clearAromaticFlags=True)
+            # re-index mols in canonical order
+            mol_canon = Chem.MolFromSmiles(Chem.MolToSmiles(mol))
+            G1 = topology_from_rdkit(mol)
+            G2 = topology_from_rdkit(mol_canon)
+            # error *= np.sqrt(num_atoms / num_linker)
+            GM = isomorphism.GraphMatcher(G1, G2)
+            flag = GM.is_isomorphic()
+            if flag:
+                mol = Chem.RenumberAtoms(mol, list(GM.mapping))
+                mols_processed.append(mol)
+        except:
+            continue
+    return mols_processed
+
+def make_frag_smiles(mols):
+    smis = []
+    for mol in mols:
+        smis.append(Chem.MolToSmiles(mol))
+    frags = fragment_dataset(smis, linker_min=3, fragment_min=5, min_path_length=2, linker_leq_frags=True)
+    return frags
+
+def make_frag_with_pos(frags, mols):
+    dataset_dict = {}
+    frags_with_pos = [[], []]
+    count = 0
+    for toks in frags:
+        if toks[0] in dataset_dict:
+            dataset_dict[toks[0]].append([toks[1], toks[2]+'.'+toks[3]])
+        else:
+            dataset_dict[toks[0]] = [[toks[1], toks[2]+'.'+toks[3]]]
+    for mol in mols:
+        smi = Chem.MolToSmiles(mol)
+        if smi in dataset_dict:
+            for frag in dataset_dict[smi]:
+                frags_with_pos[0].append([smi] + frag)
+                frags_with_pos[1].append(mol.GetConformer().GetPositions())
+                count += 1
+                if count % 10000 == 0:
+                    print('Make fragments: %d'%count)
+    return frags_with_pos
+
+def topology_from_rdkit(rdkit_molecule):
+
+    topology = nx.Graph()
+    for atom in rdkit_molecule.GetAtoms():
+        # Add the atoms as nodes
+        topology.add_node(atom.GetIdx(), atom_type=atom.GetAtomicNum())
+
+        # Add the bonds as edges
+    for bond in rdkit_molecule.GetBonds():
+        topology.add_edge(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx(), bond_type=bond.GetBondType())
+
+    return topology
+
+def node_match(n1, n2):
+    return n1['atom_type'] == n2['atom_type']
+
+def edge_match(e1, e2):
+    return e1['bond_type'] == e2['bond_type']
