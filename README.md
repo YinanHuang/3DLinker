@@ -1,4 +1,4 @@
-# 3DLinker: An** **E (3) Equivariant Variational Autoencoder for Molecular Linker Design
+# 3DLinker: An E (3) Equivariant Variational Autoencoder for Molecular Linker Design
 ## About
 This directory contains the code and resources of the following paper:
 [_"3DLinker: An E(3) Equivariant Variational Autoencoder for Molecular Linker Design"_](https://arxiv.org/abs/2205.07309)
