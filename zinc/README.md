@@ -12,7 +12,7 @@ in the following format:
 
 For example, one line of the txt file could be
 
-`COc1ccccc1[*:2].Fc1cccc([*:1])c1 COc1ccccc1CCC(=O)c1cccc(F)c1`
+`C1CCN([*:2])C1.Cc1ccc(CCNC(=O)NCC[*:1])c(C)c1 Cc1ccc(CCNC(=O)NCCc2csc(N3CCCC3)n2)c(C)c1`
 
 Then run the following to preprocess your raw data into triplet format (molecule, linker, fragment):
 
