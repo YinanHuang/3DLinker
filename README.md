@@ -69,7 +69,7 @@ To evaluate the generated molecules, enter the analysis directory and run
 **Training**
 
 To train your own model, first download training dataset from [here](https://drive.google.com/drive/folders/1z4P_IDM5Zrc6Aju6qqwPvPQTd9lgZnXy?usp=sharing) 
-and save it under directory \[data\]. Then run
+and save it under directory \[zinc\]. Then run
 `python main.py --dataset zinc --config-file train_config.json`
 
 Change hyper-parameters like batch size in file train_config.json. More hyper-params can be found in main.py.
