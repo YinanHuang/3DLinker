@@ -9,9 +9,9 @@ def align_mol_to_frags(smi_molecule, smi_linker, smi_frags):
         frags = Chem.MolFromSmiles(smi_frags)
         linker = Chem.MolFromSmiles(smi_linker)
         # transform aromatic rings into single-double format
-        rdmolops.Kekulize(mol, clearAromaticFlags=True)
-        rdmolops.Kekulize(frags, clearAromaticFlags=True)
-        rdmolops.Kekulize(linker, clearAromaticFlags=True)
+        # rdmolops.Kekulize(mol, clearAromaticFlags=True)
+        # rdmolops.Kekulize(frags, clearAromaticFlags=True)
+        # rdmolops.Kekulize(linker, clearAromaticFlags=True)
         # Include dummy atoms in query
         du = Chem.MolFromSmiles('*')
         qp = Chem.AdjustQueryParameters()
@@ -23,10 +23,10 @@ def align_mol_to_frags(smi_molecule, smi_linker, smi_frags):
         sub_idx = []
         # Get matches to fragments and linker
         qfrag = Chem.AdjustQueryProperties(frags, qp)
-        rdmolops.Kekulize(qfrag, clearAromaticFlags=True)
+        # rdmolops.Kekulize(qfrag, clearAromaticFlags=True)
         frags_matches = list(mol.GetSubstructMatches(qfrag, uniquify=False))
         qlinker = Chem.AdjustQueryProperties(linker, qp)
-        rdmolops.Kekulize(qlinker, clearAromaticFlags=True)
+        # rdmolops.Kekulize(qlinker, clearAromaticFlags=True)
         linker_matches = list(mol.GetSubstructMatches(qlinker, uniquify=False))
 
         # Loop over matches

@@ -529,8 +529,8 @@ def compute_3d_coors(mol, random_seed=0):
     pos = c.GetPositions()
     return pos, 1
 
-def compute_3d_coors_multiple(smi, numConfs=20, maxIters=400, randomSeed=1):
-    mol = Chem.MolFromSmiles(smi)
+def compute_3d_coors_multiple(mol, numConfs=20, maxIters=400, randomSeed=1):
+    # mol = Chem.MolFromSmiles(smi)
     mol = Chem.AddHs(mol)
     AllChem.EmbedMultipleConfs(mol, numConfs=numConfs, numThreads=0, randomSeed=randomSeed)
     if mol.GetConformers() == ():
