@@ -36,5 +36,5 @@ dataset into values of key <train_file>/<valid_file> in the config json file "tr
 
 ---
 In case that ground truth are unknown and all we want is generation, simply replace `fragments(SMILES) molecule(SMILES)` by `fragments(SMILES) *` in Step 1.
-Note that 3DLinker requires the coordinates of fragment, and in this case it naively adds a pesudo linker (*CC*) and uses RDKit to generate fragment' coordinates.
-The quality of generation relies on how we deal with the coordinates of the fragment. 
+Note that 3DLinker requires the coordinates of fragment, and our solution here is to naively add a pesudo linker (\*CC\*) and use RDKit to generate fragment' coordinates.
+The quality of generation actually relies on how we deal with the coordinates of the fragment. 
