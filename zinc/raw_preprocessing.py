@@ -10,6 +10,9 @@ Options:
     --verbose                Print progress and updates to terminal
 """
 import sys, os
+
+import utils
+
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 from rdkit import Chem
 from rdkit.Chem import AllChem
@@ -36,8 +39,12 @@ if __name__ == "__main__":
     data_filt = []
     errors = 0
     for i, d in enumerate(data):
-        if frag_utils.check_smi_atom_types(d[0]) and frag_utils.check_smi_atom_types(d[1]):
-            data_filt.append(d)
+        smi_frag, smi_mol = d[0], d[1]
+        # check if ground truth is available
+        if smi_mol == '*':
+            smi_mol = utils.construct_fake_gt(smi_frag)
+        if frag_utils.check_smi_atom_types(smi_frag) and frag_utils.check_smi_atom_types(smi_mol):
+            data_filt.append([smi_frag, smi_mol])
         else:
             errors +=1
     
@@ -59,6 +66,8 @@ if __name__ == "__main__":
         clean_frag = Chem.RemoveHs(AllChem.ReplaceSubstructs(Chem.MolFromSmiles(d[0]),du,Chem.MolFromSmiles('[H]'),True)[0]) 
         linker = frag_utils.get_linker(Chem.MolFromSmiles(d[1]), clean_frag, d[0])
         linker = re.sub('[0-9]+\*', '*', linker)
+        if linker == '':
+            linker = '*'
         data_filt[i].append(linker)
 
     # Calculate structural information

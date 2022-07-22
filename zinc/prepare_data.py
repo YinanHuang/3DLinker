@@ -18,7 +18,8 @@ from rdkit.Chem import rdmolops
 from rdkit.Chem import rdFMCS
 import json
 import numpy as np
-from utils import bond_dict, dataset_info, need_kekulize, to_graph_mol, graph_to_adj_mat, compute_3d_coors, compute_3d_coors_multiple
+from utils import bond_dict, dataset_info, need_kekulize, to_graph_mol, graph_to_adj_mat, compute_3d_coors, \
+    compute_3d_coors_multiple, compute_3d_coors_frags
 import utils
 from align_utils import align_mol_to_frags
 
@@ -54,9 +55,6 @@ def preprocess(raw_data, dataset, name, test=False, sdf_file=None):
     total = len(raw_data)
     for i, (smi_mol, smi_frags, smi_link, abs_dist) in enumerate([(mol['smi_mol'], mol['smi_frags'], 
                                                                    mol['smi_linker'], mol['abs_dist']) for mol in raw_data]):
-        if test:
-            smi_mol = smi_frags
-            smi_link = ''
         (mol_out, mol_in), nodes_to_keep, exit_points, re_idx = align_mol_to_frags(smi_mol, smi_link, smi_frags)
         if mol_out == []:
             continue

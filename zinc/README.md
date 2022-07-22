@@ -33,3 +33,8 @@ which can be used for training and test.
 ## Step 3: Train/generation on your dataset
 To train/test on your own dataset obtained in step 2, simply run the training/test script with the config file changed. Concretly, write the path to your new
 dataset into values of key <train_file>/<valid_file> in the config json file "train_config.json"/"test_config.json". 
+
+---
+In case that ground truth are unknown and all we want is generation, simply replace `fragments(SMILES) molecule(SMILES)` by `fragments(SMILES) *` in Step 1.
+Note that 3DLinker requires the coordinates of fragment, and in this case it naively adds a pesudo linker (*CC*) and uses RDKit to generate fragment' coordinates.
+The quality of generation relies on how we deal with the coordinates of the fragment. 

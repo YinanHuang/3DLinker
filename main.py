@@ -1779,6 +1779,10 @@ class Linker(ChemModel):
                                      mode='constant')
         elements['v_to_keep'] = np.pad(elements['v_to_keep'], pad_width=[[0, self.params['compensate_num']]],
                                        mode='constant')
+        elements['positions_out'] = np.pad(elements['positions_out'], [[0, self.params['compensate_num']],
+                                                                       [0, 0]], mode='constant')
+        elements['positions_in'] = np.pad(elements['positions_in'], [[0, self.params['compensate_num']],
+                                                                       [0, 0]], mode='constant')
         return maximum_length
 
     def load_dynamic_data_info(self, elements, latent_node_symbol, incre_adj_mat, num_vertices,

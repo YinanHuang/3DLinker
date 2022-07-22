@@ -543,6 +543,19 @@ def compute_3d_coors_multiple(mol, numConfs=20, maxIters=400, randomSeed=1):
     result.sort()
     return mol.GetConformers()[result[0][-1]].GetPositions(), 1
 
+def compute_3d_coors_frags(mol, numConfs=20, maxIters=400, randomSeed=1):
+    du = Chem.MolFromSmiles('*')
+    clean_frag = Chem.RemoveHs(AllChem.ReplaceSubstructs(Chem.MolFromSmiles(Chem.MolToSmiles(mol)),du,Chem.MolFromSmiles('[H]'),True)[0])
+    frag = Chem.CombineMols(clean_frag, Chem.MolFromSmiles("*.*"))
+    mol_to_link_carbon = AllChem.ReplaceSubstructs(mol, du, Chem.MolFromSmiles('C'), True)[0]
+    pos, _ = compute_3d_coors_multiple(mol_to_link_carbon, numConfs, maxIters, randomSeed)
+
+
+    return pos
+
+
+
+
 def re_index(array, re_idx):
     array_re_idx = np.zeros_like(array)
     for i in range(len(re_idx)):
@@ -774,3 +787,18 @@ def tensor_product(v1, v2):
     v_others = torch.unsqueeze(v_others, dim=-2)
     return torch.matmul(v_self, v_others)
 
+
+def construct_fake_gt(smi):
+    ori_mol = Chem.MolFromSmiles(smi)
+    edmol = Chem.RWMol(Chem.MolFromSmiles(''))
+    exits = []
+    for atom in ori_mol.GetAtoms():
+        edmol.AddAtom(Chem.Atom(atom.GetAtomicNum()))
+        if atom.GetAtomicNum() == 0:
+            exits.append(atom.GetIdx())
+    for bond in ori_mol.GetBonds():
+        edmol.AddBond(bond.GetBeginAtomIdx(), bond.GetEndAtomIdx(), bond.GetBondType())
+    edmol.AddBond(exits[0], exits[1], Chem.BondType.SINGLE)
+    for exit in exits:
+        edmol.GetAtomWithIdx(exit).SetAtomicNum(6)
+    return Chem.MolToSmiles(edmol.GetMol())
