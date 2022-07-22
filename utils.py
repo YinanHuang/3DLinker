@@ -789,6 +789,7 @@ def tensor_product(v1, v2):
 
 
 def construct_fake_gt(smi):
+    # construct a fake ground truth for fragment's coordinates generation by RDKit
     ori_mol = Chem.MolFromSmiles(smi)
     edmol = Chem.RWMol(Chem.MolFromSmiles(''))
     exits = []
