@@ -14,7 +14,7 @@ For example, one line of the txt file could be
 
 `C1CCN([*:2])C1.Cc1ccc(CCNC(=O)NCC[*:1])c(C)c1 Cc1ccc(CCNC(=O)NCCc2csc(N3CCCC3)n2)c(C)c1`
 
-For cases where ground truth is unknown, see <a href="#Unknown ground truth">this</a>. 
+For cases where ground truth is unknown, see the tips at the bottom of this page. 
 
 Run the following to preprocess your raw data into triplet format (molecule, linker, fragment):
 
