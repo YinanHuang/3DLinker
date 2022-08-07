@@ -14,7 +14,9 @@ For example, one line of the txt file could be
 
 `C1CCN([*:2])C1.Cc1ccc(CCNC(=O)NCC[*:1])c(C)c1 Cc1ccc(CCNC(=O)NCCc2csc(N3CCCC3)n2)c(C)c1`
 
-Then run the following to preprocess your raw data into triplet format (molecule, linker, fragment):
+For cases where ground truth is unknown, see [this](#Unknown ground truth). 
+
+Run the following to preprocess your raw data into triplet format (molecule, linker, fragment):
 
 `python raw_preprocessing.py --data_path RAW_DATA_PATH --output_path SAVE_PATH --verbose`
 
@@ -35,6 +37,7 @@ To train/test on your own dataset obtained in step 2, simply run the training/te
 dataset into values of key <train_file>/<valid_file> in the config json file "train_config.json"/"test_config.json". 
 
 ---
+### Unknown ground truth
 In case that ground truth are unknown and all we want is generation, simply replace `fragments(SMILES) molecule(SMILES)` by `fragments(SMILES) *` in Step 1.
 Note that 3DLinker requires the coordinates of fragment, and our solution here is to naively add a pesudo linker (\*CC\*) and use RDKit to generate fragment' coordinates.
 The quality of generation actually relies on how we deal with the coordinates of the fragment. 
