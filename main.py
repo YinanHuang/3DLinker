@@ -1258,6 +1258,14 @@ class Linker(ChemModel):
         v_norm = torch.norm(v, dim=-1)
         num_graphs = v.size(0)
         num_atoms = v.size(1)
+        # get valences mask
+        valences = [get_initial_valence(torch.argmax(self.data['node_symbols_in'], dim=-1).cpu().detach().numpy()[b],
+                                        self.params['dataset']) for b in range(num_graphs)]
+        valences = torch.tensor(valences, device=self.device)
+        temp = torch.sum(self.data['adjacency_matrix_in'], dim=-1)
+        temp = torch.unsqueeze(torch.unsqueeze(torch.tensor([1, 2, 3], device=self.device), dim=0), dim=-1) * temp
+        valences = torch.unsqueeze(valences - torch.sum(temp, dim=1), dim=-1)
+        valences[valences != 0] = 1
         # first fragment
         features = torch.cat([self.ops['z_sampled_h_in'], v_norm], dim=2)
         scores = fully_connected(features, self.weights['exit_points_hidden_weights'],
@@ -1635,7 +1643,10 @@ class Linker(ChemModel):
             two_frags_mask = find_two_frags_with_idx(
                 torch.sum(self.data['adjacency_matrix_in'], dim=1).cpu().detach().numpy(), [[0, 1]],
                 self.device)
-            exit_points = self.sample_exit_points(two_frags_mask)
+            # either sample anchor nodes 
+            # exit_points = self.sample_exit_points(two_frags_mask)
+            # or simply use ground truth anchor nodes
+            exit_points = exit_truth
             if exit_points == exit_truth:
                 correct_exit.append(1)
         else:
